@@ -44,34 +44,87 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <pthread.h>
+#include <string.h>
 #include "common.h"
 
 
 /* How much space to leave between the stacks, at each end */
 #define REDZONE	_ST_PAGE_SIZE
 
-__thread _st_clist_t _st_free_stacks;
-__thread int _st_num_free_stacks = 0;
-__thread int _st_randomize_stacks = 0;
+int _st_free_inited = 0;
+pthread_mutex_t _st_free_stack_lock;
+
+_st_clist_t _st_free_stacks;
+int _st_num_free_stacks = 0;
+
+int _st_randomize_stacks = 0;
 
 static char *_st_new_stk_segment(int size);
 
-_st_stack_t *_st_stack_new(int stack_size)
+int _st_stack_init()
 {
+    if (!_st_free_inited) {
+        pthread_mutexattr_t attr;
+
+        // https://man7.org/linux/man-pages/man3/pthread_mutexattr_init.3.html
+        int r0 = pthread_mutexattr_init(&attr);
+        if (r0) {
+            return r0;
+        }
+        
+        // https://man7.org/linux/man-pages/man3/pthread_mutexattr_gettype.3p.html
+        r0 = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+        if (r0) {
+            return r0;
+        }
+
+        // https://michaelkerrisk.com/linux/man-pages/man3/pthread_mutex_init.3p.html
+        r0 = pthread_mutex_init(&_st_free_stack_lock, &attr);
+        if (r0) {
+            return r0;
+        }
+
+        r0 = pthread_mutexattr_destroy(&attr);
+
+        ST_INIT_CLIST(&_st_free_stacks);
+
+        _st_free_inited = 1;
+    }
+
+    return 0;
+}
+
+_st_stack_t *_st_stack_fetch(int stack_size)
+{
+    pthread_mutex_lock(&_st_free_stack_lock);
     _st_clist_t *qp;
-    _st_stack_t *ts;
-    int extra;
-    
+    _st_stack_t *ts = NULL;
+
     for (qp = _st_free_stacks.next; qp != &_st_free_stacks; qp = qp->next) {
-        ts = _ST_THREAD_STACK_PTR(qp);
-        if (ts->stk_size >= stack_size) {
+        _st_stack_t *tmp_ts = _ST_THREAD_STACK_PTR(qp);
+        if (tmp_ts->stk_size >= stack_size) {
             /* Found a stack that is big enough */
+            ts = tmp_ts;
             ST_REMOVE_LINK(&ts->links);
             _st_num_free_stacks--;
             ts->links.next = NULL;
             ts->links.prev = NULL;
-            return ts;
+            memset(ts->stk_bottom, 0, stack_size);
+            break;
         }
+    }
+    pthread_mutex_unlock(&_st_free_stack_lock);
+    return ts;
+}
+
+_st_stack_t *_st_stack_new(int stack_size)
+{
+    _st_stack_t *ts;
+    int extra;
+
+    if ((ts = _st_stack_fetch(stack_size)) != NULL) {
+        return ts;
     }
     
     /* Make a new thread stack object. */
@@ -113,8 +166,10 @@ void _st_stack_free(_st_stack_t *ts)
         return;
     
     /* Put the stack on the free list */
+    pthread_mutex_lock(&_st_free_stack_lock);
     ST_APPEND_LINK(&ts->links, _st_free_stacks.prev);
     _st_num_free_stacks++;
+    pthread_mutex_unlock(&_st_free_stack_lock);
 }
 
 

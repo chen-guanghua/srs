@@ -80,7 +80,7 @@ __thread time_t _st_curr_time = 0;       /* Current time as returned by time(2) 
 __thread st_utime_t _st_last_tset;       /* Last time it was fetched */
 
 // We should initialize the thread-local variable in st_init().
-extern __thread _st_clist_t _st_free_stacks;
+extern _st_clist_t _st_free_stacks;
 
 int st_poll(struct pollfd *pds, int npds, st_utime_t timeout)
 {
@@ -179,8 +179,9 @@ int st_init(void)
     if (_st_io_init() < 0)
         return -1;
 
-    // Initialize the thread-local variables.
-    ST_INIT_CLIST(&_st_free_stacks);
+    if (_st_stack_init() != 0) {
+        return -1;
+    }
 
     // Initialize ST.
     memset(&_st_this_vp, 0, sizeof(_st_vp_t));
