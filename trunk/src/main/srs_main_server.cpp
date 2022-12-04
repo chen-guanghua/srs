@@ -78,6 +78,19 @@ bool _srs_config_by_env = false;
 // The binary name of SRS.
 const char* _srs_binary = NULL;
 
+#ifdef SRS_SANITIZER
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+void asan_report_callback(const char* str)
+{
+    srs_trace("asan_error_report\n%s", str);
+}
+// #ifdef __cplusplus
+// }
+// #endif
+#endif
+
 /**
  * main entrance.
  */
@@ -224,6 +237,8 @@ srs_error_t do_main(int argc, char** argv, char** envp)
 #endif
 
 #ifdef SRS_SANITIZER
+    __asan_set_error_report_callback(asan_report_callback);
+
     bool log_tank_file = _srs_config->get_log_tank_file();
     std::string asan_log = _srs_config->get_asan_log_file();
     if (log_tank_file && !asan_log.empty()) {
@@ -476,6 +491,11 @@ srs_error_t run_directly_or_daemon()
     
     // son
     srs_trace("son(daemon) process running.");
+
+    int arr[8] = {0};
+
+    arr[0] = 10;
+    arr[9] = 10;
     
     if ((err = run_in_thread_pool()) != srs_success) {
         return srs_error_wrap(err, "daemon run thread pool");

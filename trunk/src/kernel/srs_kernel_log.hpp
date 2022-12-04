@@ -54,6 +54,9 @@ public:
 public:
     // Write a application level log. All parameters are required except the tag.
     virtual void log(SrsLogLevel level, const char* tag, const SrsContextId& context_id, const char* fmt, va_list args) = 0;
+public:
+    // Get log file fd, for asan log write.
+    virtual int get_fd() = 0;
 };
 
 // The logic context, for example, a RTMP connection, or RTC Session, etc.

@@ -52,6 +52,7 @@ public:
     virtual srs_error_t initialize();
     virtual void reopen();
     virtual void log(SrsLogLevel level, const char* tag, const SrsContextId& context_id, const char* fmt, va_list args);
+    virtual int get_fd();
 private:
     virtual void write_log(int& fd, char* str_log, int size, int level);
     virtual void open_log_file();

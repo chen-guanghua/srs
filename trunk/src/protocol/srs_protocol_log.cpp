@@ -162,6 +162,11 @@ void SrsConsoleLog::log(SrsLogLevel level, const char* tag, const SrsContextId& 
     }
 }
 
+int SrsConsoleLog::get_fd()
+{
+    return 0;
+}
+
 bool srs_log_header(char* buffer, int size, bool utc, bool dangerous, const char* tag, SrsContextId cid, const char* level, int* psize)
 {
     // clock time

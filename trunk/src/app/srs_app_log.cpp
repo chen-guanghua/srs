@@ -122,6 +122,11 @@ void SrsFileLog::log(SrsLogLevel level, const char* tag, const SrsContextId& con
     write_log(fd, log_data, size, level);
 }
 
+int SrsFileLog::get_fd()
+{
+    return fd;
+}
+
 void SrsFileLog::write_log(int& fd, char *str_log, int size, int level)
 {
     // ensure the tail and EOF of string
